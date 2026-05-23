@@ -40,7 +40,7 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
 
-          make rockchip_defconfig
+          make rockchip_linux_defconfig
           make -j$(nproc) rk3399-firefly-nt35596.img
 
       - name: Verify outputs
