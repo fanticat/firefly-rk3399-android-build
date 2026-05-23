@@ -1,0 +1,83 @@
+name: Build Firefly RK3399 Android Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'patches/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu device-tree-compiler bison flex libssl-dev bc python3
+
+      - name: Clone Vicharak kernel
+        run: |
+          git clone --depth 1 https://github.com/vicharak-in/vicharak-linux-kernel.git kernel
+
+      - name: Apply NT35596 DSI + FT5336 touchscreen DTS
+        run: |
+          cd kernel
+          # Replace Firefly Android DTS with our NT35596 DSI version
+          cp ../patches/rk3399-firefly-nt35596.dts arch/arm64/boot/dts/rockchip/
+
+          # Add our DTS to Makefile (replacing original firefly-android entry)
+          sed -i '/rk3399-firefly-android\.dtb/d' arch/arm64/boot/dts/rockchip/Makefile
+          echo 'dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-nt35596.dtb' >> arch/arm64/boot/dts/rockchip/Makefile
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+
+          make rockchip_defconfig
+          make -j$(nproc) rk3399-firefly-nt35596.img
+
+      - name: Verify outputs
+        run: |
+          cd kernel
+          echo "=== Kernel Image ==="
+          ls -la arch/arm64/boot/Image
+
+          echo "=== DTB ==="
+          ls -la arch/arm64/boot/dts/rockchip/rk3399-firefly-nt35596.dtb
+
+          echo "=== Kernel modules ==="
+          ls -la arch/arm64/boot/Image.lz4 2>/dev/null || echo "No lz4 image"
+
+          mkdir -p output
+          cp arch/arm64/boot/Image output/
+          cp arch/arm64/boot/dts/rockchip/rk3399-firefly-nt35596.dtb output/
+
+      - name: Build kernel modules
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+
+          make -j$(nproc) modules
+
+          mkdir -p output/modules
+          export INSTALL_MOD_PATH=$PWD/output/modules
+          make modules_install
+
+          # Remove build symlink and source
+          rm -f output/modules/lib/modules/*/build
+          rm -f output/modules/lib/modules/*/source
+
+      - name: Upload kernel + DTB
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefly-rk3399-kernel-nt35596
+          path: kernel/output/
+          retention-days: 30
