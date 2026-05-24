@@ -103,6 +103,37 @@ def main():
     else:
         print("\n  (No custom U-Boot found, keeping original)")
 
+    # Replace misc.img with zeros to clear recovery/bootloader flag
+    misc_dst = os.path.join(WORK_DIR, "update", "Image", "misc.img")
+    with open(misc_dst, "wb") as f:
+        f.write(b"\x00" * (128 * 1024))  # 128KB zeroed misc
+    print("  Cleared misc.img (zeroed to force normal boot)")
+
+    # Disable AVB verification by patching vbmeta.img flags
+    vbmeta_dst = os.path.join(WORK_DIR, "update", "Image", "vbmeta.img")
+    if os.path.exists(vbmeta_dst):
+        with open(vbmeta_dst, "rb") as f:
+            vbmeta = bytearray(f.read())
+        if vbmeta[:4] == b"AVB0":
+            # AVB VBMeta Image Header flags at offset 123 (big-endian uint32)
+            # Bit 0: VERIFICATION_DISABLED, Bit 1: HASHTREE_DISABLED
+            import struct as st
+            flags_off = 123
+            old_flags = st.unpack_from(">I", vbmeta, flags_off)[0]
+            new_flags = old_flags | 3  # VERIFICATION_DISABLED | HASHTREE_DISABLED
+            st.pack_into(">I", vbmeta, flags_off, new_flags)
+            with open(vbmeta_dst, "wb") as f:
+                f.write(vbmeta)
+            print(f"  Patched vbmeta.img: flags 0x{old_flags:x} -> 0x{new_flags:x} (AVB disabled)")
+        else:
+            print("  (vbmeta.img not AVB0 format, skipping patch)")
+
+    # Keep original dtbo.img - it contains overlay for bootargs_ext and reboot_mode
+    # that Android init needs for proper boot configuration
+    dtbo_dst = os.path.join(WORK_DIR, "update", "Image", "dtbo.img")
+    if os.path.exists(dtbo_dst):
+        print("  Keeping original dtbo.img (contains boot overlay)")
+
     # afptool -pack expects ./parameter in the CWD (the update directory)
     param_src = os.path.join(WORK_DIR, "update", "Image", "parameter.txt")
     param_dst = os.path.join(WORK_DIR, "update", "parameter")

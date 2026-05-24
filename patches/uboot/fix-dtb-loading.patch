@@ -1,0 +1,14 @@
+--- a/common/image-android.c
++++ b/common/image-android.c
+@@ -618,6 +618,11 @@
+ 		buffer = (void *)env_get_ulong("fdt_addr_r", 16, 0);
+ 		if (gd->fdt_blob != (void *)buffer)
+ 			ret = rockchip_read_dtb_file(buffer);
++		/* If external DTB loading failed, copy built-in DTB */
++		if (ret < 0 && gd->fdt_blob) {
++			memcpy(buffer, gd->fdt_blob, fdt_totalsize(gd->fdt_blob));
++			ret = 0;
++		}
+ #endif
+ 		return ret < 0 ? ret : 0;
+ 	default:

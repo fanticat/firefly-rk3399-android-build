@@ -65,7 +65,7 @@ download_uboot() {
 import json,sys
 runs = json.load(sys.stdin)
 for r in runs:
-    if r['conclusion'] == 'success' and 'uboot' in r.get('name','').lower():
+    if r['conclusion'] == 'success' and 'u-boot' in r.get('name','').lower():
         print(r['databaseId'])
         break
 ")
@@ -86,13 +86,15 @@ for r in runs:
     ls -lh "$UBOOT/"
 }
 
-# Step 2: Repack boot.img (new kernel + original ramdisk)
+# Step 2: Repack boot.img (new kernel + original ramdisk + extra cmdline for dynamic partitions)
 make_boot() {
     echo "==> Repacking boot.img..."
     python3 "$TOOLS/mkbootimg-rk.py" \
         "$BOOT/vaaman-boot-original.img" \
         "$KERNEL/Image" \
-        "$BOOT/firefly-boot-nt35596.img"
+        "$BOOT/firefly-boot-nt35596.img" \
+        "" \
+        "androidboot.super_partition=/dev/block/by-name/super"
 }
 
 # Step 3: Build complete RKFW update.img

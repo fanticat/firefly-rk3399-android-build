@@ -42,12 +42,10 @@ jobs:
             sed -i '/rk3399-firefly\.dtb/a\\trk3399-firefly-android.dtb \\' arch/arm/dts/Makefile
           fi
 
-          # Reuse Vaaman's board code, Kconfig, and header as-is.
-          # This ensures VENDOR=vicharak is set (from SYS_VENDOR in Kconfig),
-          # which makes the Makefile include board/vicharak/common/ (vicharak_common.c).
-          #
-          # The Vaaman board code uses SARADC ch1 for recovery key - same as Firefly.
-          # The defconfig points to our Firefly DTS instead of Vaaman's.
+          # Patch: if external DTB can't be loaded from eMMC, fall back to
+          # U-Boot's built-in DTB. This is needed because the Vaaman firmware
+          # doesn't have a filesystem partition with our DTB file.
+          patch -p1 < ../patches/uboot/fix-dtb-loading.patch
 
       - name: Verify Kconfig and board setup
         run: |
