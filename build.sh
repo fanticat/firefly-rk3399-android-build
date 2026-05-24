@@ -93,7 +93,7 @@ make_boot() {
         "$BOOT/vaaman-boot-original.img" \
         "$KERNEL/Image" \
         "$BOOT/firefly-boot-nt35596.img" \
-        "" \
+        "$KERNEL/rk3399-firefly-nt35596.dtb" \
         "androidboot.super_partition=/dev/block/by-name/super"
 }
 

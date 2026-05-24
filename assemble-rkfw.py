@@ -26,6 +26,10 @@ CUSTOM_BOOT = os.path.join(BOOT, "firefly-boot-nt35596.img")
 CUSTOM_UBOOT = os.path.join(UBOOT, "uboot.img")
 CUSTOM_TRUST = os.path.join(UBOOT, "trust.img")
 CUSTOM_IDBLOADER = os.path.join(UBOOT, "idbloader.img")
+
+# Firefly ROC-RK3399-PC-Pro Android 10 U-Boot (works on Firefly hardware)
+FIREFLY_UBOOT = os.path.join(UBOOT, "firefly-android10-uboot.img")
+FIREFLY_TRUST = os.path.join(UBOOT, "firefly-android10-trust.img")
 OUTPUT = os.path.join(FIRMWARE, "firefly-rk3399-android12-nt35596.img")
 
 WORK_DIR = os.path.join(FIRMWARE, "_work")
@@ -91,17 +95,22 @@ def main():
     boot_dst = os.path.join(WORK_DIR, "update", "Image", "boot.img")
     run(f"cp {CUSTOM_BOOT} {boot_dst}")
 
-    # Replace uboot.img and trust.img if custom U-Boot is available
-    use_custom_uboot = os.path.exists(CUSTOM_UBOOT) and os.path.exists(CUSTOM_TRUST)
-    if use_custom_uboot:
-        print("\n==> Replacing uboot.img and trust.img with custom U-Boot...")
-        uboot_dst = os.path.join(WORK_DIR, "update", "Image", "uboot.img")
-        trust_dst = os.path.join(WORK_DIR, "update", "Image", "trust.img")
+    # Use Firefly ROC-RK3399-PC-Pro U-Boot (Vaaman U-Boot hangs on Firefly hardware)
+    print("\n  Using Firefly Android 10 U-Boot...")
+    uboot_dst = os.path.join(WORK_DIR, "update", "Image", "uboot.img")
+    trust_dst = os.path.join(WORK_DIR, "update", "Image", "trust.img")
+    if os.path.exists(FIREFLY_UBOOT):
+        run(f"cp {FIREFLY_UBOOT} {uboot_dst}")
+        print(f"  Installed Firefly uboot.img")
+    elif os.path.exists(CUSTOM_UBOOT):
         run(f"cp {CUSTOM_UBOOT} {uboot_dst}")
+        print(f"  Installed custom Vaaman uboot.img (fallback)")
+    if os.path.exists(FIREFLY_TRUST):
+        run(f"cp {FIREFLY_TRUST} {trust_dst}")
+        print(f"  Installed Firefly trust.img")
+    elif os.path.exists(CUSTOM_TRUST):
         run(f"cp {CUSTOM_TRUST} {trust_dst}")
-        print("  Custom U-Boot applied!")
-    else:
-        print("\n  (No custom U-Boot found, keeping original)")
+        print(f"  Installed custom Vaaman trust.img (fallback)")
 
     # Replace misc.img with zeros to clear recovery/bootloader flag
     misc_dst = os.path.join(WORK_DIR, "update", "Image", "misc.img")
