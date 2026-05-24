@@ -41,7 +41,10 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
 
-          make rockchip_android_defconfig
+          # Start with Linux defconfig, then merge Android 12 requirements
+          make rockchip_linux_defconfig
+          scripts/kconfig/merge_config.sh -m .config ../patches/android-12.config
+          make olddefconfig
           make -j$(nproc) rk3399-firefly-nt35596.img
 
       - name: Verify outputs
