@@ -146,6 +146,8 @@
 &cpu_b0 { cpu-supply = <&vdd_cpu_b>; };
 &cpu_b1 { cpu-supply = <&vdd_cpu_b>; };
 
+&crypto { status = "okay"; };
+
 &emmc_phy { status = "okay"; };
 
 &gmac {
