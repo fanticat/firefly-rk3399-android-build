@@ -23,7 +23,7 @@ jobs:
 
       - name: Clone Vicharak U-Boot
         run: |
-          git clone --depth 1 --single-branch --branch develop https://github.com/vicharak-in/rockchip-linux-u-boot.git uboot
+          git clone --depth 1 --single-branch --branch master https://github.com/vicharak-in/rockchip-linux-u-boot.git uboot
 
       - name: Apply Firefly board patches
         run: |
