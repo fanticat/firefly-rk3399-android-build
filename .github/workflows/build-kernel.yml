@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'patches/**'
+      - 'patches/rk3399-firefly-nt35596.dts'
+      - '.github/workflows/build-kernel.yml'
 
 jobs:
   build:

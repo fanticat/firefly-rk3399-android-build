@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'patches/uboot/**'
+      - '.github/workflows/build-uboot.yml'
 
 jobs:
   build:
