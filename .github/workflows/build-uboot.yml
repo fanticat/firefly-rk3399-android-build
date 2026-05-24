@@ -48,6 +48,11 @@ jobs:
           cp board/vicharak/rk3399_vaaman/rk3399_vaaman.c board/vicharak/rk3399_firefly/rk3399_firefly.c
           cp board/vicharak/rk3399_vaaman/Makefile board/vicharak/rk3399_firefly/
 
+          # Copy vicharak common board code (console_magic_match, is_mmc_magic_match)
+          mkdir -p board/vicharak/common
+          cp board/vicharak/common/vicharak_common.c board/vicharak/common/
+          cp board/vicharak/common/Makefile board/vicharak/common/
+
           # Create Kconfig for the new board target
           cat > board/vicharak/rk3399_firefly/Kconfig << 'KCFG'
           if TARGET_RK3399_FIREFLY
