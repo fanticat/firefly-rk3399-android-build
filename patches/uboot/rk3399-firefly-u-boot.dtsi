@@ -1,0 +1,134 @@
+/*
+ * U-Boot device tree overlay for Firefly-RK3399
+ * Based on rk3399-vaaman-u-boot.dtsi but adapted for Firefly:
+ *   - Boot order: sdhci (eMMC), sdmmc (no NVMe)
+ *   - No PCIe/NVMe pre-reloc nodes (Firefly doesn't boot from NVMe)
+ */
+
+/ {
+	aliases {
+		mmc0 = &sdhci;
+		mmc1 = &sdmmc;
+	};
+
+	chosen {
+		stdout-path = &uart2;
+		u-boot,spl-boot-order = &sdhci, &sdmmc;
+	};
+};
+
+&psci {
+	u-boot,dm-pre-reloc;
+	status = "okay";
+};
+
+&uart2 {
+	clock-frequency = <24000000>;
+	u-boot,dm-pre-reloc;
+};
+
+&saradc {
+	u-boot,dm-pre-reloc;
+};
+
+&sdmmc {
+	u-boot,dm-pre-reloc;
+};
+
+&sdhci {
+	u-boot,dm-pre-reloc;
+};
+
+&pmu {
+	u-boot,dm-pre-reloc;
+};
+
+&pmugrf {
+	u-boot,dm-pre-reloc;
+};
+
+&pmusgrf {
+	u-boot,dm-pre-reloc;
+};
+
+&pmucru {
+	u-boot,dm-pre-reloc;
+};
+
+&cru {
+	u-boot,dm-pre-reloc;
+};
+
+&crypto {
+	u-boot,dm-pre-reloc;
+};
+
+&grf {
+	u-boot,dm-pre-reloc;
+};
+
+&cic {
+	u-boot,dm-pre-reloc;
+};
+
+&dmc {
+	u-boot,dm-pre-reloc;
+};
+
+&emmc_phy {
+	u-boot,dm-pre-reloc;
+};
+
+&pinctrl {
+	u-boot,dm-pre-reloc;
+};
+
+&gpio0 {
+	u-boot,dm-pre-reloc;
+};
+
+&gpio1 {
+	u-boot,dm-pre-reloc;
+};
+
+&gpio2 {
+	u-boot,dm-pre-reloc;
+};
+
+&gpio3 {
+	u-boot,dm-pre-reloc;
+};
+
+&gpio4 {
+	u-boot,dm-pre-reloc;
+};
+
+&u2phy0 {
+	u-boot,dm-pre-reloc;
+	status = "okay";
+};
+
+&u2phy0_otg {
+	u-boot,dm-pre-reloc;
+	status = "okay";
+};
+
+&usb_host1_ehci {
+	u-boot,dm-pre-reloc;
+};
+
+&usb_host1_ohci {
+	u-boot,dm-pre-reloc;
+};
+
+&u2phy1 {
+	u-boot,dm-pre-reloc;
+};
+
+&u2phy1_otg {
+	u-boot,dm-pre-reloc;
+};
+
+&u2phy1_host {
+	u-boot,dm-pre-reloc;
+};
