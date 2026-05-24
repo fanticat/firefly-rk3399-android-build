@@ -26,7 +26,7 @@ jobs:
         run: |
           git clone --depth 1 --single-branch --branch master https://github.com/vicharak-in/rockchip-linux-u-boot.git uboot
 
-      - name: Apply Firefly board patches
+      - name: Apply Firefly patches
         run: |
           cd uboot
 
@@ -35,75 +35,31 @@ jobs:
           cp ../patches/uboot/rk3399-firefly-u-boot.dtsi arch/arm/dts/
           cp ../patches/uboot/rk3399-firefly-android_defconfig configs/
 
-          # Add our DTB to the Makefile
+          # Add our DTB to the Makefile (after the existing firefly entry)
           if grep -q 'rk3399-firefly-android\.dtb' arch/arm/dts/Makefile; then
             echo "DTB entry already exists"
           else
             sed -i '/rk3399-firefly\.dtb/a\\trk3399-firefly-android.dtb \\' arch/arm/dts/Makefile
           fi
 
-          # Copy Vaaman board code (ADC recovery key + LED support - same for Firefly)
-          # The board code uses SARADC ch1 which matches Firefly hardware
-          mkdir -p board/vicharak/rk3399_firefly
-          cp board/vicharak/rk3399_vaaman/rk3399_vaaman.c board/vicharak/rk3399_firefly/rk3399_firefly.c
-          cp board/vicharak/rk3399_vaaman/Makefile board/vicharak/rk3399_firefly/
+          # Reuse Vaaman's board code, Kconfig, and header as-is.
+          # This ensures VENDOR=vicharak is set (from SYS_VENDOR in Kconfig),
+          # which makes the Makefile include board/vicharak/common/ (vicharak_common.c).
+          #
+          # The Vaaman board code uses SARADC ch1 for recovery key - same as Firefly.
+          # The defconfig points to our Firefly DTS instead of Vaaman's.
 
-          # vicharak_common.c (console_magic_match) is already in the source tree at board/vicharak/common/
-
-          # Create Kconfig for the new board target
-          cat > board/vicharak/rk3399_firefly/Kconfig << 'KCFG'
-          if TARGET_RK3399_FIREFLY
-
-          config SYS_BOARD
-                  default "rk3399_firefly"
-
-          config SYS_VENDOR
-                  default "vicharak"
-
-          config SYS_CONFIG_NAME
-                  default "rk3399_firefly"
-
-          config BOARD_SPECIFIC_OPTIONS
-                  def_bool y
-
-          endif
-          KCFG
-
-          # Add board target to arch/arm/mach-rockchip/rk3399/Kconfig
-          sed -i '/source "board\/vicharak\/rk3399_vaaman\/Kconfig"/a\\nconfig TARGET_RK3399_FIREFLY\n\tbool "Firefly RK3399 board"\n\thelp\n\t  Firefly-RK3399 board with Android 12 support.\n\nsource "board/vicharak/rk3399_firefly/Kconfig"' arch/arm/mach-rockchip/rk3399/Kconfig
-
-          # Create board header
-          cat > include/configs/rk3399_firefly.h << 'HDR'
-          /* SPDX-License-Identifier: GPL-2.0+ */
-          #ifndef __RK3399_FIREFLY_H
-          #define __RK3399_FIREFLY_H
-
-          #include <configs/rk3399_common.h>
-
-          #define ROCKCHIP_DEVICE_SETTINGS \
-                  "stdin=serial,usbkbd\0" \
-                  "stdout=serial,vidconsole\0" \
-                  "stderr=serial,vidconsole\0"
-
-          #ifndef CONFIG_SPL_BUILD
-          #undef CONFIG_BOOTCOMMAND
-          #define CONFIG_BOOTCOMMAND RKIMG_BOOTCOMMAND
-          #endif
-
-          #define CONFIG_MMC_SDHCI_SDMA
-          #define CONFIG_SYS_MMC_ENV_DEV 0
-          #define CONFIG_SYS_MMC_MAX_BLK_COUNT 32768
-
-          #define CONFIG_MISC_INIT_R
-          #define CONFIG_SERIAL_TAG
-          #define CONFIG_ENV_OVERWRITE
-
-          #define CONFIG_BMP_16BPP
-          #define CONFIG_BMP_24BPP
-          #define CONFIG_BMP_32BPP
-
-          #endif
-          HDR
+      - name: Verify Kconfig and board setup
+        run: |
+          cd uboot
+          echo "=== defconfig DT ==="
+          grep "DEFAULT_DEVICE_TREE\|EARLY_DISTRO_DTB" configs/rk3399-firefly-android_defconfig
+          echo "=== DTS files ==="
+          ls -la arch/arm/dts/rk3399-firefly-android.dts arch/arm/dts/rk3399-firefly-u-boot.dtsi
+          echo "=== Board dir ==="
+          ls -la board/vicharak/rk3399_vaaman/
+          echo "=== Vendor common ==="
+          ls -la board/vicharak/common/
 
       - name: Build U-Boot
         run: |
