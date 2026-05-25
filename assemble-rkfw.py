@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Assemble RKFW firmware for RK3399 without using img_maker.
+Assemble RKFW firmware for RK3399 based on RK official Android 12.
 
-img_maker from rk2918_tools hardcodes chip=0x50 (RK29xx) and corrupts
-the RKFW header for RK3399, causing "Prepare IDB failed" on flash.
+Uses the official RK3399 Android 12 firmware as base, replacing only:
+- boot.img: custom kernel with NT35596 MIPI DSI panel support
+- vbmeta.img: patched to disable AVB verification
+- misc.img: zeroed to clear boot mode flags
 
-This script preserves the original RKFW header + loader bytes exactly,
-only replacing the RKAF update.img payload, then appending a correct MD5.
+Keeps the official U-Boot, trust, super, recovery, dtbo, parameter, etc.
 """
 
 import struct
@@ -19,17 +20,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(SCRIPT_DIR, "tools")
 FIRMWARE = os.path.join(SCRIPT_DIR, "firmware")
 BOOT = os.path.join(SCRIPT_DIR, "boot")
-UBOOT = os.path.join(SCRIPT_DIR, "uboot")
 
-BASE_IMG = os.path.join(FIRMWARE, "Vicharak_Vaaman_EMMC_android12_v0.1.0_09262023.img")
+BASE_IMG = os.path.join(FIRMWARE, "update.img")
 CUSTOM_BOOT = os.path.join(BOOT, "firefly-boot-nt35596.img")
-CUSTOM_UBOOT = os.path.join(UBOOT, "uboot.img")
-CUSTOM_TRUST = os.path.join(UBOOT, "trust.img")
-CUSTOM_IDBLOADER = os.path.join(UBOOT, "idbloader.img")
-
-# Firefly ROC-RK3399-PC-Pro Android 10 U-Boot (works on Firefly hardware)
-FIREFLY_UBOOT = os.path.join(UBOOT, "firefly-android10-uboot.img")
-FIREFLY_TRUST = os.path.join(UBOOT, "firefly-android10-trust.img")
+CUSTOM_UBOOT = os.path.join(SCRIPT_DIR, "uboot", "uboot.img")
+CUSTOM_TRUST = os.path.join(SCRIPT_DIR, "uboot", "trust.img")
 OUTPUT = os.path.join(FIRMWARE, "firefly-rk3399-android12-nt35596.img")
 
 WORK_DIR = os.path.join(FIRMWARE, "_work")
@@ -42,10 +37,16 @@ def run(cmd, **kwargs):
 
 def main():
     if not os.path.exists(BASE_IMG):
-        print(f"ERROR: Base firmware not found: {BASE_IMG}")
+        print(f"ERROR: RK official firmware not found: {BASE_IMG}")
         sys.exit(1)
     if not os.path.exists(CUSTOM_BOOT):
         print(f"ERROR: Custom boot.img not found: {CUSTOM_BOOT}")
+        sys.exit(1)
+    if not os.path.exists(CUSTOM_UBOOT):
+        print(f"ERROR: Custom uboot.img not found: {CUSTOM_UBOOT}")
+        sys.exit(1)
+    if not os.path.exists(CUSTOM_TRUST):
+        print(f"ERROR: Custom trust.img not found: {CUSTOM_TRUST}")
         sys.exit(1)
 
     # Read original RKFW header
@@ -79,7 +80,7 @@ def main():
         rkaf_data = f.read(image_length)
 
     # Unpack RKAF
-    print("\n==> Unpacking original RKAF update.img...")
+    print("\n==> Unpacking RK official RKAF update.img...")
     if os.path.exists(WORK_DIR):
         run(f"rm -rf {WORK_DIR}")
     os.makedirs(os.path.join(WORK_DIR, "update", "Image"), exist_ok=True)
@@ -90,27 +91,29 @@ def main():
 
     run(f"cd {WORK_DIR}/update && {TOOLS}/afptool -unpack {rkaf_path} .")
 
-    # Replace boot.img
+    # Replace boot.img with our custom kernel + NT35596 DTB
     print("\n==> Replacing boot.img...")
     boot_dst = os.path.join(WORK_DIR, "update", "Image", "boot.img")
     run(f"cp {CUSTOM_BOOT} {boot_dst}")
 
-    # Use Firefly ROC-RK3399-PC-Pro U-Boot (Vaaman U-Boot hangs on Firefly hardware)
-    print("\n  Using Firefly Android 10 U-Boot...")
+    # Replace parameter.txt with expanded boot partition (0x18000 = 48 MB)
+    # Original RK official boot partition is 0x14000 = 40 MB, too small for our ~43 MB boot.img
+    param_src = os.path.join(SCRIPT_DIR, "patches", "parameter-rk-official.txt")
+    param_img = os.path.join(WORK_DIR, "update", "Image", "parameter.txt")
+    if os.path.exists(param_src):
+        run(f"cp {param_src} {param_img}")
+        print("  Replaced parameter.txt (expanded boot partition to 48 MB)")
+
+    # Replace uboot.img with our custom build (AVB disabled, Firefly board support)
+    print("\n==> Replacing uboot.img with custom U-Boot (AVB disabled)...")
     uboot_dst = os.path.join(WORK_DIR, "update", "Image", "uboot.img")
+    run(f"cp {CUSTOM_UBOOT} {uboot_dst}")
+    print("  Replaced uboot.img (custom U-Boot without AVB)")
+
+    # Replace trust.img with matching OP-TEE from our build
     trust_dst = os.path.join(WORK_DIR, "update", "Image", "trust.img")
-    if os.path.exists(FIREFLY_UBOOT):
-        run(f"cp {FIREFLY_UBOOT} {uboot_dst}")
-        print(f"  Installed Firefly uboot.img")
-    elif os.path.exists(CUSTOM_UBOOT):
-        run(f"cp {CUSTOM_UBOOT} {uboot_dst}")
-        print(f"  Installed custom Vaaman uboot.img (fallback)")
-    if os.path.exists(FIREFLY_TRUST):
-        run(f"cp {FIREFLY_TRUST} {trust_dst}")
-        print(f"  Installed Firefly trust.img")
-    elif os.path.exists(CUSTOM_TRUST):
-        run(f"cp {CUSTOM_TRUST} {trust_dst}")
-        print(f"  Installed custom Vaaman trust.img (fallback)")
+    run(f"cp {CUSTOM_TRUST} {trust_dst}")
+    print("  Replaced trust.img (matching OP-TEE/BL31)")
 
     # Replace misc.img with zeros to clear recovery/bootloader flag
     misc_dst = os.path.join(WORK_DIR, "update", "Image", "misc.img")
@@ -124,26 +127,22 @@ def main():
         with open(vbmeta_dst, "rb") as f:
             vbmeta = bytearray(f.read())
         if vbmeta[:4] == b"AVB0":
-            # AVB VBMeta Image Header flags at offset 123 (big-endian uint32)
-            # Bit 0: VERIFICATION_DISABLED, Bit 1: HASHTREE_DISABLED
-            import struct as st
             flags_off = 123
-            old_flags = st.unpack_from(">I", vbmeta, flags_off)[0]
+            old_flags = struct.unpack_from(">I", vbmeta, flags_off)[0]
             new_flags = old_flags | 3  # VERIFICATION_DISABLED | HASHTREE_DISABLED
-            st.pack_into(">I", vbmeta, flags_off, new_flags)
+            struct.pack_into(">I", vbmeta, flags_off, new_flags)
             with open(vbmeta_dst, "wb") as f:
                 f.write(vbmeta)
             print(f"  Patched vbmeta.img: flags 0x{old_flags:x} -> 0x{new_flags:x} (AVB disabled)")
         else:
             print("  (vbmeta.img not AVB0 format, skipping patch)")
 
-    # Keep original dtbo.img - it contains overlay for bootargs_ext and reboot_mode
-    # that Android init needs for proper boot configuration
+    # Keep original dtbo.img
     dtbo_dst = os.path.join(WORK_DIR, "update", "Image", "dtbo.img")
     if os.path.exists(dtbo_dst):
         print("  Keeping original dtbo.img (contains boot overlay)")
 
-    # afptool -pack expects ./parameter in the CWD (the update directory)
+    # afptool -pack expects ./parameter in the CWD
     param_src = os.path.join(WORK_DIR, "update", "Image", "parameter.txt")
     param_dst = os.path.join(WORK_DIR, "update", "parameter")
     if os.path.exists(param_src):
@@ -160,17 +159,14 @@ def main():
     # Assemble final RKFW
     print("\n==> Assembling RKFW firmware...")
 
-    # Update header: only change image_length
     new_image_offset = loader_offset + loader_length
     struct.pack_into("<I", header, 0x21, new_image_offset)
     struct.pack_into("<I", header, 0x25, update_new_size)
 
-    # Build MD5 over header + loader + update.img
     md5 = hashlib.md5()
     md5.update(header)
     md5.update(loader_data)
 
-    # Write output: header + loader + update.img + MD5 hex
     with open(OUTPUT, "wb") as out:
         out.write(header)
         out.write(loader_data)
@@ -185,7 +181,6 @@ def main():
 
     md5_hex = md5.hexdigest()
 
-    # Append MD5 as 32-byte ASCII hex string
     with open(OUTPUT, "ab") as out:
         out.write(md5_hex.encode("ascii"))
 
@@ -195,7 +190,7 @@ def main():
     print(f"  Size:    {final_size} bytes ({final_size / (1024*1024):.1f} MB)")
     print(f"  MD5:     {md5_hex}")
 
-    # Verify: read back and check structure
+    # Verify
     print("\n==> Verifying output...")
     with open(OUTPUT, "rb") as f:
         v_header = f.read(0x66)
@@ -226,7 +221,6 @@ def main():
 
     print("  All checks passed!")
 
-    # Cleanup
     run(f"rm -rf {WORK_DIR}")
 
     print(f"\n  Flash with: sudo rkdeveloptool wl 0 {OUTPUT}")
